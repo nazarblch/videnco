@@ -107,7 +107,7 @@ discriminator = CoordDisc(48)
 # discriminator.load_state_dict(torch.load(f'{Paths.default.models()}/videnc_{str(20000).zfill(6)}.pt', map_location="cpu")["disc"])
 discriminator = discriminator.cuda()
 c2c_model_tuda = coord_to_coord(48)
-gan_model = StyleGanModel(c2c_model_tuda, StyleGANLoss(discriminator), (0.001, 0.0015))
+gan_model = StyleGanModel(c2c_model_tuda, StyleGANLoss(discriminator, r1=1), (0.001, 0.0015))
 
 accumulator = Accumulator(model, decay=0.99, write_every=100)
 
@@ -126,13 +126,13 @@ for i in range(50000):
 
     encoded = model(heatmap.squeeze())
     fake_coords = c2c_model_tuda(encoded)
-    Loss(nn.MSELoss()(encoded, fake_coords.detach()) + nn.MSELoss()(fake_coords, encoded.detach()))\
+    Loss(nn.MSELoss()(encoded, fake_coords.detach()) + nn.MSELoss()(fake_coords, encoded.detach())).__mul__(2)\
         .minimize_step(gan_model.optimizer.opt_min, enc_optimizer)
 
     c_loss = Loss(contrastive_loss(heatmap, model))
     print(c_loss.item())
     writer.add_scalar("loss", c_loss.item(), i)
-    c_loss.__mul__(0.02).minimize_step(optim_coord_hm, enc_optimizer)
+    c_loss.__mul__(0.3).minimize_step(optim_coord_hm, enc_optimizer)
 
     # pred = c2c_model(model(heatmap.squeeze()).detach())
     pred_loss = Loss(nn.MSELoss()(encoded, coords))

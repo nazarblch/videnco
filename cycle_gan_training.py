@@ -47,12 +47,12 @@ c2c_model_obratno = coord_to_coord(48)
 
 discriminator_tuda = CoordDisc(48)
 discriminator_tuda = discriminator_tuda.cuda()
-gan_model_tuda = StyleGanModel(c2c_model_tuda, StyleGANLoss(discriminator_tuda), (0.001, 0.0015))
+gan_model_tuda = StyleGanModel(c2c_model_tuda, StyleGANLoss(discriminator_tuda, r1=1), (0.001, 0.0015))
 
 
 discriminator_obratno = CoordDisc(48)
 discriminator_obratno = discriminator_obratno.cuda()
-gan_model_obratno = StyleGanModel(c2c_model_obratno, StyleGANLoss(discriminator_obratno), (0.001, 0.0015))
+gan_model_obratno = StyleGanModel(c2c_model_obratno, StyleGANLoss(discriminator_obratno, r1=1), (0.001, 0.0015))
 
 accumulator = Accumulator(model, decay=0.98, write_every=100)
 # accumulator2 = Accumulator(c2c_model_obratno, decay=0.98, write_every=100)
@@ -122,7 +122,7 @@ for i in range(500000):
     gan_model_obratno.generator_loss([enc_coords], [coords_obratno]).minimize_step(gan_model_obratno.optimizer.opt_min)
 
     tuda_obratno = c2c_model_obratno(c2c_model_tuda(enc_coords))
-    tuda_obratno_loss = Loss(nn.MSELoss()(tuda_obratno, enc_coords)).__mul__(1)\
+    tuda_obratno_loss = Loss(nn.MSELoss()(tuda_obratno, enc_coords)).__mul__(2)\
         .minimize_step(gan_model_tuda.optimizer.opt_min, gan_model_obratno.optimizer.opt_min)
 
     obratno_tuda = c2c_model_tuda(c2c_model_obratno(coords))
@@ -138,7 +138,7 @@ for i in range(500000):
 
     c_loss = Loss(contrastive_loss(heatmap, model))
     writer.add_scalar("loss", c_loss.item(), i)
-    (c_loss * 0.1 + pred_ll * 0.1).minimize_step(optim_coord_hm, enc_optimizer)
+    (c_loss * 0.2 + pred_ll * 0.1).minimize_step(optim_coord_hm, enc_optimizer)
 
     pred_loss = nn.MSELoss()(coords_tuda, coords)
     writer.add_scalar("verka", pred_loss.item(), i)

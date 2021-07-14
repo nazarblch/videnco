@@ -118,21 +118,20 @@ for i in range(50000):
     coords, heatmap = next(LazyLoader.trajectory().loader_train_inf)
     coords, heatmap = coords.to(device), heatmap.to(device)
 
-    fake_coords = c2c_model_tuda(model(heatmap.squeeze()))
-    pred = fake_coords.detach()
+    fake_coords = model(heatmap.squeeze())
     gan_model.discriminator_train([coords], [fake_coords.detach()])
 
-    gan_model.generator_loss([coords], [fake_coords]).minimize_step(gan_model.optimizer.opt_min, enc_optimizer)
+    gan_model.generator_loss([coords], [fake_coords]).minimize_step(enc_optimizer)
 
     encoded = model(heatmap.squeeze())
-    fake_coords = c2c_model_tuda(encoded)
-    Loss(nn.MSELoss()(encoded, fake_coords.detach()) + nn.MSELoss()(fake_coords, encoded.detach())).__mul__(2)\
-        .minimize_step(gan_model.optimizer.opt_min, enc_optimizer)
+    # fake_coords = c2c_model_tuda(encoded)
+    # Loss(nn.MSELoss()(encoded, fake_coords.detach()) + nn.MSELoss()(fake_coords, encoded.detach())).__mul__(2)\
+    #     .minimize_step(gan_model.optimizer.opt_min, enc_optimizer)
 
     c_loss = Loss(contrastive_loss(heatmap, model))
     print(c_loss.item())
     writer.add_scalar("loss", c_loss.item(), i)
-    c_loss.__mul__(0.3).minimize_step(optim_coord_hm, enc_optimizer)
+    c_loss.__mul__(0.4).minimize_step(optim_coord_hm, enc_optimizer)
 
     # pred = c2c_model(model(heatmap.squeeze()).detach())
     pred_loss = Loss(nn.MSELoss()(encoded, coords))

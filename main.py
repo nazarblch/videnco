@@ -3,6 +3,8 @@ import time
 import os, sys
 from itertools import chain
 
+from contrast.patcher import SlidePatcher1D
+
 sys.path.append(os.path.join(sys.path[0], '../'))
 sys.path.append(os.path.join(sys.path[0], '../../gans-pytorch/'))
 
@@ -29,7 +31,7 @@ from gan.models.stylegan import StyleGanModel, StyleGANLoss
 def patch_maker(x: Tensor, stride: int, window: int):
     T = x.shape[1]
     res = []
-    for i in range(0, T - window, stride):
+    for i in range(0, T - window + 1, stride):
         res.append(x[:, i: i + window, ...])
     return torch.stack(res, dim=1)  # B x NP x P x DATA
 
@@ -76,8 +78,12 @@ def contrastive_loss(hm: Tensor, enc: nn.Module) -> Tensor:
     #     [patch_maker(hm, P - 2, P), transformed_patch_maker(hm, transform, P - 2, P)],
     #     dim=1
     # )
-    hm_patched = patch_maker(transform(image=hm)["image"], P-2, P)
-    coords_patched = patch_maker(enc(hm), P-2, P)
+
+    patcher = SlidePatcher1D(P-2, P, 1)
+
+    hm_patched = patcher.make(transform(image=hm)["image"])
+    coords_patched = patcher.make(enc(hm))
+
 
     B = hm_patched.shape[0]
     NP = hm_patched.shape[1]
@@ -124,16 +130,12 @@ for i in range(50000):
     gan_model.generator_loss([coords], [fake_coords]).minimize_step(enc_optimizer)
 
     encoded = model(heatmap.squeeze())
-    # fake_coords = c2c_model_tuda(encoded)
-    # Loss(nn.MSELoss()(encoded, fake_coords.detach()) + nn.MSELoss()(fake_coords, encoded.detach())).__mul__(2)\
-    #     .minimize_step(gan_model.optimizer.opt_min, enc_optimizer)
 
     c_loss = Loss(contrastive_loss(heatmap, model))
     print(c_loss.item())
     writer.add_scalar("loss", c_loss.item(), i)
-    c_loss.__mul__(0.4).minimize_step(optim_coord_hm, enc_optimizer)
+    c_loss.__mul__(0.2).minimize_step(optim_coord_hm, enc_optimizer)
 
-    # pred = c2c_model(model(heatmap.squeeze()).detach())
     pred_loss = Loss(nn.MSELoss()(encoded, coords))
     writer.add_scalar("verka", pred_loss.item(), i)
 

@@ -53,8 +53,8 @@ discriminator = nn.Sequential(
     EqualLinear(20, 1, activation=None)
 ).cuda()
 
-gan_model = StyleGanModel(generator, StyleGANLoss(discriminator), (0.002, 0.003))
-accumulator = Accumulator(generator, decay=0.99, write_every=100)
+gan_model = StyleGanModel(generator, StyleGANLoss(discriminator, r1=1), (0.001, 0.0015))
+accumulator = Accumulator(generator, decay=0.98, write_every=100)
 
 x_network = nn.Sequential(
     EqualLinear(2, 20, activation=None),
@@ -72,7 +72,7 @@ y_network = nn.Sequential(
     EqualLinear(20, 20, activation=None),
 ).cuda()
 
-xy_opt = torch.optim.Adam(chain(x_network.parameters(), y_network.parameters()), lr=0.002)
+xy_opt = torch.optim.Adam(chain(x_network.parameters(), y_network.parameters()), lr=0.001)
 
 def transformed_patch_maker(x: Tensor, window: int):
     B = x.shape[0]
@@ -88,7 +88,7 @@ def contrastive_loss(x: Tensor, y: Tensor) -> Tensor:
 
     B = x.shape[0]
     x_patch = transformed_patch_maker(x, 5).view(-1, 2)
-    y_patch = generator(x_patch + torch.randn_like(x_patch) * 0.02)
+    y_patch = generator(x_patch)
 
     x_feat = x_network(x_patch + torch.randn_like(x_patch) * 0.02)
     y_feat = y_network(y_patch)
@@ -102,7 +102,7 @@ c2c_model = nn.Sequential(
     nn.LeakyReLU(0.2, inplace=True),
     EqualLinear(20, 2, activation=None),
 ).cuda()
-c2c_optim = torch.optim.Adam(c2c_model.parameters(), lr=0.003)
+c2c_optim = torch.optim.Adam(c2c_model.parameters(), lr=0.001)
 
 for i in range(50000):
     print(i)
@@ -120,10 +120,9 @@ for i in range(50000):
 
     accumulator.step(i)
 
-    pred = c2c_model(generator(x).detach())
+    pred = generator(x)
     pred_loss = Loss(nn.MSELoss()(pred, y))
     print(pred_loss.item())
-    pred_loss.minimize_step(c2c_optim)
 
     if i % 1000 == 0:
         # print(x.shape, y.shape, f.shape)
